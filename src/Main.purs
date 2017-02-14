@@ -4,17 +4,15 @@ import Control.Alternative ((<|>))
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, logShow)
 import Data.Either (Either(..))
-import Data.Int (floor, fromString)
+import Data.Int (fromString)
 import Data.List ((:), toUnfoldable)
 import Data.Maybe (Maybe(..), maybe)
-import Data.Semigroup ((<>))
-import Data.String (fromCharArray, singleton)
+import Data.String (fromCharArray)
 import Data.Tuple.Nested (type (/\), (/\))
-import Global (readInt)
-import Prelude ((<<<), (<$>), ($), class Show, Unit, bind, const, pure, show)
+import Prelude ((<<<), ($), (<>), (<$>), (*>), class Show, Unit, bind, pure, show)
 import Text.Parsing.StringParser (Parser, fail, runParser, try)
-import Text.Parsing.StringParser.Combinators (many, many1, optionMaybe)
-import Text.Parsing.StringParser.String (anyDigit, anyLetter, char)
+import Text.Parsing.StringParser.Combinators (lookAhead, many, many1)
+import Text.Parsing.StringParser.String (anyDigit, anyLetter, char, eof)
 
 --------------------------------------------------------------------------------
 
@@ -54,11 +52,12 @@ parseSemVer :: Parser SemVer
 parseSemVer = do
   major /\ minor /\ patch <- parseMajMinPat
 
-  maybeRel <- optionMaybe $ char '-'
-  rel <- maybeArr (const parseNOSBlock) maybeRel
+  rel <- (char '-' *> parseNOSBlock) <|>
+         (lookAhead $ char '+' *> pure []) <|>
+         (eof *> pure [])
 
-  maybeMet <- optionMaybe $ char '+'
-  met <- maybeArr (const parseNOSBlock) maybeMet
+  met <- (char '+' *> parseNOSBlock) <|>
+         (eof *> pure [])
 
   pure $ SemVer major minor patch rel met
 
@@ -109,7 +108,7 @@ anyInt = try do
 
 main :: forall e. Eff (console :: CONSOLE | e) Unit
 main = do
-  let parsed = runParser parseSemVer "1.1.1-beta.1+test.2"
+  let parsed = runParser parseSemVer "1.1.1+1"
   case parsed of
     Left  e -> logShow e
     Right s -> logShow s
