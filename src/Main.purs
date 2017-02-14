@@ -4,15 +4,15 @@ import Control.Alternative ((<|>))
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, logShow)
 import Data.Either (Either(..))
-import Data.Int (floor)
+import Data.Int (floor, fromString)
 import Data.List ((:), toUnfoldable)
-import Data.Maybe (Maybe, maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Semigroup ((<>))
 import Data.String (fromCharArray, singleton)
 import Data.Tuple.Nested (type (/\), (/\))
 import Global (readInt)
 import Prelude ((<<<), (<$>), ($), class Show, Unit, bind, const, pure, show)
-import Text.Parsing.StringParser (Parser, runParser)
+import Text.Parsing.StringParser (Parser, fail, runParser, try)
 import Text.Parsing.StringParser.Combinators (many, many1, optionMaybe)
 import Text.Parsing.StringParser.String (anyDigit, anyLetter, char)
 
@@ -70,11 +70,11 @@ parseSemVer = do
 
 parseMajMinPat :: Parser (Major /\ Minor /\ Patch)
 parseMajMinPat = do
-  major <- charToInt <$> anyDigit
+  major <- anyInt
   _     <- char '.'
-  minor <- charToInt <$> anyDigit
+  minor <- anyInt
   _     <- char '.'
-  patch <- charToInt <$> anyDigit
+  patch <- anyInt
   pure $ major /\ minor /\ patch
 
 --------------------------------------------------------------------------------
@@ -93,13 +93,17 @@ parseNOSBlock = do
 
 parseNOS :: Parser NumberOrString
 parseNOS =
-      (NOSS <<< fromCharArray <<< toUnfoldable) <$> (many1 anyLetter)
-  <|> (NOSI <<< charToInt) <$> anyDigit
+      NOSS <<< fromCharArray <<< toUnfoldable <$> many1 anyLetter
+  <|> NOSI <$> anyInt
 
 --------------------------------------------------------------------------------
 
-charToInt :: Char -> Int
-charToInt = floor <<< readInt 10 <<< singleton
+anyInt :: Parser Int
+anyInt = try do
+  d <- fromCharArray <<< toUnfoldable <$> many1 anyDigit
+  case (fromString d) of
+    Nothing  -> fail $ "Character " <> show d <> " is not an int"
+    Just int -> pure int
 
 --------------------------------------------------------------------------------
 
